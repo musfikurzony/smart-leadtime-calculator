@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Garment Lead Time Calculator — Holiday Ranges Version</title>
+<style>
+  :root{
+    --bg:#07102a; --panel:#0e1a3a; --accent:#ff9f1c; --muted:#9fb6e0; --good:#1e7a6c;
+  }
+  body{
+    background:linear-gradient(180deg,var(--bg),#041026 120%);
+    color:#eaf2ff;font-family:Inter,Arial,Helvetica,sans-serif;
+    margin:0;padding:18px;
+  }
+  h1{margin:0 0 10px;font-size:20px;color:#fff}
+  .topbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+  button{
+    background:var(--panel);border:1px solid rgba(255,255,255,0.06);
+    color:#fff;padding:8px 10px;border-radius:6px;cursor:pointer;
+  }
+  .container{display:grid;grid-template-columns:1fr 420px;gap:14px}
+  .card{
+    background:linear-gradient(180deg,var(--panel),#0b1d3a);
+    padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)
+  }
+  label{display:block;margin:6px 0;font-size:13px;color:var(--muted)}
+  input[type=date], select, input[type=text], input[type=number]{
+    padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.18);
+    background:#020617;color:#e5e7eb;font-size:13px;
+  }
+  input[type=date]::-webkit-calendar-picker-indicator{
+    filter:invert(1);
+    cursor:pointer;
+  }
+  select option{background:#020617;color:#e5e7eb}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{
+    padding:6px 6px;border:1px solid rgba(255,255,255,0.06);
+    font-size:12px;text-align:center;white-space:nowrap;
+  }
+  th{background:rgba(255,255,255,0.06)}
+  .holiday{background:linear-gradient(90deg,#ffedd5,#ffd6a5);color:#2b1600;font-weight:700;white-space:normal}
+  .normal{background:transparent}
+  .small{font-size:12px;color:var(--muted)}
+  .row{display:flex;gap:8px;align-items:center}
+  .muted{color:var(--muted);font-size:12px}
+  .remarks{font-size:11px;text-align:left;color:#ffd;margin-top:4px}
+  .badge{background:rgba(255,255,255,0.04);padding:6px;border-radius:6px;font-size:12px}
+  .holiday-BD{background:#ffd6d6;color:#6b120d;padding:2px 4px;border-radius:4px}
+  .holiday-CN{background:#e0f0ff;color:#062e56;padding:2px 4px;border-radius:4px}
+  #holRangesList button{padding:4px 6px;font-size:11px}
+  #holRangesList .row{justify-content:space-between}
+  details summary{
+    cursor:pointer;
+    list-style:none;
+    font-size:12px;
+    color:var(--muted);
+  }
+  details summary::marker{display:none}
+  details summary::-webkit-details-marker{display:none}
+  details{
+    border-radius:6px;
+    background:rgba(15,23,42,0.5);
+    padding:6px 8px;
+    margin-top:6px;
+    border:1px solid rgba(148,163,184,0.2);
+  }
+  details[open]{border-color:var(--accent);}
+  details summary span{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  details summary span::before{
+    content:"▶";
+    font-size:9px;
+    transform:rotate(0deg);
+    transition:transform 0.15s ease;
+  }
+  details[open] summary span::before{transform:rotate(90deg);}
+  @media (max-width:980px){.container{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+  <h1>Garment Lead Time Calculator — Holiday Ranges Version</h1>
+  <div class="topbar">
+    <button id="loadDefaultsBtn">Load Default 2026</button>
+    <div class="badge small">All settings saved locally (browser)</div>
+    <div style="margin-left:auto" class="small">
+      Date format:
+      <select id="dateFormat" style="margin-left:6px"></select>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- LEFT -->
+    <div>
+      <div class="card">
+        <div class="small">Scenario inputs</div>
+        <div style="display:flex;gap:10px;margin-top:6px;align-items:flex-end;flex-wrap:wrap">
+          <div>
+            <label class="small">Scenario A Date</label>
+            <input type="date" id="scenarioAdate">
+            <select id="scenarioAtype" style="margin-top:4px">
+              <option value="forward">Order Due → Forward</option>
+              <option value="backward">CDD → Backward</option>
+            </select>
+          </div>
+          <div>
+            <label class="small">Scenario B Date (optional)</label>
+            <input type="date" id="scenarioBdate">
+            <select id="scenarioBtype" style="margin-top:4px">
+              <option value="forward">Order Due → Forward</option>
+              <option value="backward">CDD → Backward</option>
+            </select>
+          </div>
+          <div style="align-self:flex-end">
+            <button id="calculateBtn">Calculate</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:10px">
+        <div class="small"><strong>Detailed Critical Path – Scenario A</strong></div>
+        <div id="detailA" style="margin-top:6px" class="small muted">No data. Enter Scenario A date and click Calculate.</div>
+      </div>
+
+      <div class="card" style="margin-top:8px">
+        <div class="small"><strong>Detailed Critical Path – Scenario B</strong></div>
+        <div id="detailB" style="margin-top:6px" class="small muted">Optional. Enter Scenario B date and click Calculate.</div>
+      </div>
+
+      <details style="margin-top:8px">
+        <summary><span>Seasonal Critical Path Overview</span></summary>
+        <div style="margin-top:6px">
+          <button id="refreshSeasons">Refresh</button>
+          <div style="max-height:260px;overflow:auto;margin-top:8px">
+            <table id="seasonsTable">
+              <thead>
+                <tr>
+                  <th>Season</th><th>CDD</th><th>ETA</th><th>Ex-BD ETD</th>
+                  <th>Fabric In-house</th><th>Fabric ETD</th><th>Order Due</th><th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- RIGHT (Settings) -->
+    <div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Settings</strong></div>
+          <div><button id="reloadDefaultsBtn">Reload Defaults</button></div>
+        </div>
+
+        <details open>
+          <summary><span>Standard lead times (editable)</span></summary>
+          <div class="small muted" style="margin-top:4px">Adjust these to simulate shorter or longer lead times.</div>
+          <div style="margin-top:6px">
+            <div class="row small">
+              <label style="width:200px">Order Due → Fabric ETD (days)</label>
+              <input type="number" id="lt_orderToFabricETD" style="width:80px">
+            </div>
+            <div class="row small">
+              <label style="width:200px">Fabric ETD → Fabric In-house (days)</label>
+              <input type="number" id="lt_fabricETDToInhouse" style="width:80px">
+            </div>
+            <div class="row small">
+              <label style="width:200px">Fabric In-house → Garments ETD (days)</label>
+              <input type="number" id="lt_inhouseToGarmentsETD" style="width:80px">
+            </div>
+            <div class="row small">
+              <label style="width:200px">Garments ETD → ETA USA (days)</label>
+              <input type="number" id="lt_garmentsETDToETA" style="width:80px">
+            </div>
+            <div class="row small">
+              <label style="width:200px">ETA USA → CDD (days)</label>
+              <input type="number" id="lt_etaToCDD" style="width:80px">
+            </div>
+            <div style="margin-top:6px"><button id="saveLeads">Save lead times</button></div>
+          </div>
+        </details>
+
+        <details style="margin-top:6px" open>
+          <summary><span>Holiday ranges (BD &amp; CN)</span></summary>
+          <div style="margin-top:6px">
+            <div class="row"><span class="small">Add / edit holiday range</span></div>
+            <div class="row" style="margin-top:4px;flex-wrap:wrap">
+              <input type="text" id="holidayName" placeholder="Holiday name (e.g. CNY)" style="flex:1;min-width:120px">
+              <select id="holidayCountry" style="width:130px">
+                <option value="BD">Bangladesh (BD)</option>
+                <option value="CN">China (CN)</option>
+              </select>
+              <input type="date" id="holidayFrom" style="width:135px">
+              <input type="date" id="holidayTo" style="width:135px">
+              <button id="addRangeBtn">Add / Update</button>
+            </div>
+
+            <div style="margin-top:10px" class="small"><strong>Holiday ranges summary</strong></div>
+            <div id="holRangesList" class="small" style="margin-top:4px"></div>
+
+            <details style="margin-top:8px">
+              <summary><span>All holiday dates (for checking)</span></summary>
+              <div id="holList" style="margin-top:4px;max-height:160px;overflow:auto"></div>
+            </details>
+          </div>
+        </details>
+
+        <details style="margin-top:6px">
+          <summary><span>Seasonal CDDs (editable)</span></summary>
+          <div class="small muted" style="margin-top:4px">Click Save after editing.</div>
+          <div id="seasonInputs" style="margin-top:8px"></div>
+          <div style="margin-top:8px"><button id="saveSeasons">Save Seasons</button></div>
+        </details>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div><strong>Notes & Legend</strong></div>
+        <div class="small muted" style="margin-top:6px">
+          • ETD (Ex-BD) keeps nearest Sunday within 1–2 days, otherwise following Sunday, and never inside 1st / 2nd Eid.<br>
+          • BD customs work Sun–Thu. If in-house falls on Fri/Sat or BD holiday, it moves to next working day.<br>
+          • China holidays pause fabric production; BD Eid pauses garments production & customs.<br>
+          • Holiday impact labels show CNY / Golden Oct / 1st Eid / 2nd Eid with extra days (e.g. "2nd Eid (+9 days)").
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:16px;text-align:center;font-size:11px;color:#9fb6e0;opacity:0.85">
+    Calculator developed by <strong>Musfikur Rahman – Perry Ellis Bangladesh</strong> | Copyright © 2025.
+  </div>
+
+<script>
+// -------------------- Data structures --------------------
+let holidays = []; // {date:'YYYY-MM-DD', zone:'BD'|'CN', name?:string}
+let holidayRanges = []; // {name, zone, from, to}
+let seasons = {
+  "SPRING-Q1":"2026-01-05","SPRING-Q2":"2026-02-05","SPRING-Q3":"2026-03-05",
+  "SUMMER-Q1":"2026-04-05","SUMMER-Q2":"2026-05-05","SUMMER-Q3":"2026-06-05",
+  "FALL-Q1":"2026-07-05","FALL-Q2":"2026-08-05","FALL-Q3":"2026-09-05",
+  "HOLIDAY-Q1":"2026-10-05","HOLIDAY-Q2":"2026-11-05"
+};
+
+let leadTimes = {
+  orderToFabricETD:60,
+  fabricETDToInhouse:30,
+  inhouseToGarmentsETD:45,
+  garmentsETDToETA:60,
+  etaToCDD:14
+};
+
+function pad(n){return n<10? '0'+n:''+n}
+function toISO(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function parseISO(s){const p=s.split('-');return new Date(p[0],p[1]-1,p[2]);}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+function subDays(d,n){return addDays(d,-n)}
+function diffDays(a,b){
+  const da=(typeof a==='string')?parseISO(a):a;
+  const db=(typeof b==='string')?parseISO(b):b;
+  return Math.round((db-da)/(1000*60*60*24));
+}
+function rangeDates(a,b){
+  const s=new Date(a), e=new Date(b); const arr=[];
+  for(let x=new Date(s); x<=e; x.setDate(x.getDate()+1)) arr.push(toISO(new Date(x)));
+  return arr;
+}
+
+// -------------------- Defaults --------------------
+function loadDefaultRanges(){
+  holidayRanges = [
+    {name:'1st Eid', zone:'BD', from:'2026-03-18', to:'2026-03-29'},
+    {name:'2nd Eid', zone:'BD', from:'2026-05-23', to:'2026-05-31'},
+    {name:'CNY', zone:'CN', from:'2026-02-03', to:'2026-03-03'},
+    {name:'Golden Oct', zone:'CN', from:'2026-10-01', to:'2026-10-07'}
+  ];
+}
+
+function rebuildHolidaysFromRanges(){
+  holidays = [];
+  holidayRanges.forEach(r=>{
+    rangeDates(r.from,r.to).forEach(d=>{
+      if(!holidays.some(h=>h.date===d && h.zone===r.zone)){
+        holidays.push({date:d,zone:r.zone,name:r.name});
+      }
+    });
+  });
+}
+
+// -------------------- Date format handling --------------------
+const dateFormats=['MM/DD/YYYY','DD/MM/YYYY','DD-MMM-YYYY'];
+const dateFormatSel=document.getElementById('dateFormat');
+dateFormats.forEach(f=>{
+  const o=document.createElement('option');o.value=f;o.textContent=f;dateFormatSel.appendChild(o);
+});
+if(!localStorage.getItem('lt_dateFormat')) dateFormatSel.value='MM/DD/YYYY';
+
+function formatForUser(d){
+  if(!d) return '-';
+  const dt=(typeof d==='string')?parseISO(d):new Date(d);
+  const dd=pad(dt.getDate()), mm=pad(dt.getMonth()+1), yyyy=dt.getFullYear();
+  const mmm=dt.toLocaleString('en-US',{month:'short'});
+  const fmt=dateFormatSel.value || localStorage.getItem('lt_dateFormat') || 'MM/DD/YYYY';
+  if(fmt==='MM/DD/YYYY') return `${mm}/${dd}/${yyyy}`;
+  if(fmt==='DD/MM/YYYY') return `${dd}/${mm}/${yyyy}`;
+  return `${dd}-${mmm}-${yyyy}`;
+}
+
+// -------------------- Holiday helpers --------------------
+function listHolidaysInRange(aISO,bISO){
+  const a=parseISO(aISO), b=parseISO(bISO);
+  const out=[];holidays.forEach(h=>{
+    const hd=parseISO(h.date);if(hd>=a && hd<=b) out.push(h);
+  });
+  return out;
+}
+function isHolidayISO(dateISO,zone){
+  return holidays.some(h=>h.date===dateISO && (!zone || h.zone===zone));
+}
+function isBDEidHoliday(dateISO){
+  return holidays.some(h =>
+    h.date === dateISO &&
+    h.zone === 'BD' &&
+    (h.name === '1st Eid' || h.name === '2nd Eid')
+  );
+}
+function summarizeHolidayTypesInRange(aISO,bISO,zoneFilter){
+  const summary={ 'CNY':0,'Golden Oct':0,'1st Eid':0,'2nd Eid':0,'Other BD':0,'Other CN':0 };
+  const list=listHolidaysInRange(aISO,bISO);
+  list.forEach(h=>{
+    if(zoneFilter && h.zone!==zoneFilter) return;
+    const name=h.name||'';
+    if(name==='CNY') summary['CNY']++;
+    else if(name==='Golden Oct') summary['Golden Oct']++;
+    else if(name==='1st Eid') summary['1st Eid']++;
+    else if(name==='2nd Eid') summary['2nd Eid']++;
+    else if(h.zone==='BD') summary['Other BD']++;
+    else if(h.zone==='CN') summary['Other CN']++;
+  });
+  return summary;
+}
+function buildHolidaySummaryText(summary){
+  const parts=[];
+  if(summary['CNY']) parts.push(`CNY (+${summary['CNY']} days)`);
+  if(summary['Golden Oct']) parts.push(`Golden October (+${summary['Golden Oct']} days)`);
+  if(summary['1st Eid']) parts.push(`1st Eid (+${summary['1st Eid']} days)`);
+  if(summary['2nd Eid']) parts.push(`2nd Eid (+${summary['2nd Eid']} days)`);
+  if(summary['Other BD']) parts.push(`Other BD (+${summary['Other BD']} days)`);
+  if(summary['Other CN']) parts.push(`Other CN (+${summary['Other CN']} days)`);
+  return parts.length?parts.join(' | '):'-';
+}
+
+// -------------------- CN fabric production --------------------
+function computeFabricETDForward(orderDueISO){
+  let start=parseISO(orderDueISO);
+  let daysCounted=0;
+  let d=new Date(start);
+  while(daysCounted<leadTimes.orderToFabricETD){
+    d=addDays(d,1);
+    const iso=toISO(d);
+    if(isHolidayISO(iso,'CN')) continue;
+    daysCounted++;
+  }
+  while(isHolidayISO(toISO(d),'CN')){
+    d=addDays(d,1);
+  }
+  return d;
+}
+function computeOrderDueBackward(fabricETDISO){
+  let fabricETD=parseISO(fabricETDISO);
+  while(isHolidayISO(toISO(fabricETD),'CN')){
+    fabricETD=subDays(fabricETD,1);
+  }
+  let d=new Date(fabricETD);
+  let daysNeeded=leadTimes.orderToFabricETD;
+  while(daysNeeded>0){
+    d=subDays(d,1);
+    const iso=toISO(d);
+    if(isHolidayISO(iso,'CN')) continue;
+    daysNeeded--;
+  }
+  return {orderDue:d,fabricETD:fabricETD};
+}
+
+// -------------------- ETD Sunday rule --------------------
+function adjustETDToSundayRule(d){
+  const base=new Date(d);
+  const wd=base.getDay();
+  if(wd===0) return base;
+  const prevSunday=subDays(base,wd);
+  const nextSunday=addDays(base,(7-wd));
+  const diffPrev=Math.abs((base-prevSunday)/(1000*60*60*24));
+  const diffNext=Math.abs((nextSunday-base)/(1000*60*60*24));
+  if(diffPrev<=2 && diffPrev<=diffNext) return prevSunday;
+  if(diffNext<=2 && diffNext<diffPrev) return nextSunday;
+  return nextSunday;
+}
+function adjustETDToValidSunday(d){
+  let etd=adjustETDToSundayRule(d);
+  while(isBDEidHoliday(toISO(etd))){
+    etd=addDays(etd,7);
+  }
+  return etd;
+}
+
+// -------------------- BD in-house --------------------
+function adjustInhouseBD(d){
+  const x=new Date(d);
+  while(x.getDay()===5 || x.getDay()===6 || isHolidayISO(toISO(x),'BD')){
+    x.setDate(x.getDate()+1);
+  }
+  return x;
+}
+
+// -------------------- Core scenario logic --------------------
+function computeScenario(inputISO,type){
+  const result={stages:{},remarks:[],notes:{},days:{}};
+
+  if(type==='forward'){
+    const orderDue=parseISO(inputISO);
+
+    // CN – Fabric ETD
+    const fabricETD=computeFabricETDForward(inputISO);
+    const cnSummary=summarizeHolidayTypesInRange(
+      toISO(addDays(orderDue,1)),
+      toISO(fabricETD),
+      'CN'
+    );
+
+    // Fabric in-house BD
+    let fabricInhouse=addDays(fabricETD,leadTimes.fabricETDToInhouse);
+    fabricInhouse=adjustInhouseBD(fabricInhouse);
+
+    // Garments ETD – first raw then add BD days then Sunday+avoid Eid
+    const garmentsETDRaw=addDays(fabricInhouse,leadTimes.inhouseToGarmentsETD);
+
+    // BD summary based on production window
+    const bdSummaryRaw=summarizeHolidayTypesInRange(
+      toISO(addDays(fabricInhouse,1)),
+      toISO(garmentsETDRaw),
+      'BD'
+    );
+    const bdExtraDays=bdSummaryRaw['1st Eid']+bdSummaryRaw['2nd Eid']+bdSummaryRaw['Other BD'];
+
+    let garmentsETD=addDays(garmentsETDRaw,bdExtraDays);
+    garmentsETD=adjustETDToValidSunday(garmentsETD);
+
+    // Final BD summary from in-house to final garments ETD
+    const bdSummaryFinal=summarizeHolidayTypesInRange(
+      toISO(addDays(fabricInhouse,1)),
+      toISO(garmentsETD),
+      'BD'
+    );
+
+    const etaUSA=addDays(garmentsETD,leadTimes.garmentsETDToETA);
+    const cdd=addDays(etaUSA,leadTimes.etaToCDD);
+
+    result.stages.orderDue=orderDue;
+    result.stages.fabricETD=fabricETD;
+    result.stages.fabricInhouse=fabricInhouse;
+    result.stages.garmentsETD=garmentsETD;
+    result.stages.etaUSA=etaUSA;
+    result.stages.cdd=cdd;
+
+    result.notes.cnFabric=cnSummary;
+    result.notes.bdGarments=bdSummaryFinal;
+
+    const cnTxt=buildHolidaySummaryText(cnSummary);
+    if(cnTxt!=='-') result.remarks.push(`China: ${cnTxt}`);
+    const bdTxt=buildHolidaySummaryText(bdSummaryFinal);
+    if(bdTxt!=='-') result.remarks.push(`Bangladesh: ${bdTxt}`);
+
+    result.days.orderToFabricETD=diffDays(orderDue,fabricETD);
+    result.days.fabricETDToInhouse=diffDays(fabricETD,fabricInhouse);
+    result.days.inhouseToGarmentsETD=diffDays(fabricInhouse,garmentsETD);
+    result.days.garmentsETDToETA=diffDays(garmentsETD,etaUSA);
+    result.days.etaToCDD=diffDays(etaUSA,cdd);
+    result.days.orderToGarmentsETD=diffDays(orderDue,garmentsETD);
+    result.days.orderToCDD=diffDays(orderDue,cdd);
+
+    return result;
+  }else{
+    // backward – starting from CDD
+    const cdd=parseISO(inputISO);
+    const etaUSA=subDays(cdd,leadTimes.etaToCDD);
+    let garmentsETD=subDays(etaUSA,leadTimes.garmentsETDToETA);
+    garmentsETD=adjustETDToValidSunday(garmentsETD);
+
+    // Work backwards to in-house but avoid Fri/Sat & BD holidays
+    let fabricInhouse=subDays(garmentsETD,leadTimes.inhouseToGarmentsETD);
+    while(
+      fabricInhouse.getDay()===5 ||
+      fabricInhouse.getDay()===6 ||
+      isHolidayISO(toISO(fabricInhouse),'BD')
+    ){
+      fabricInhouse=subDays(fabricInhouse,1);
+    }
+
+    // Final BD summary from in-house to garments ETD
+    const bdSummaryFinal=summarizeHolidayTypesInRange(
+      toISO(addDays(fabricInhouse,1)),
+      toISO(garmentsETD),
+      'BD'
+    );
+
+    // CN backward for fabric ETD & order due
+    let tentativeFabricETD=subDays(fabricInhouse,leadTimes.fabricETDToInhouse);
+    const backwardCN=computeOrderDueBackward(toISO(tentativeFabricETD));
+    const fabricETD=backwardCN.fabricETD;
+    let orderDue=backwardCN.orderDue;
+
+    // Order Due: Mon–Fri, not USA weekend / holiday (we just avoid Sat/Sun/any holiday)
+    while(
+      orderDue.getDay()===0 ||
+      orderDue.getDay()===6 ||
+      isHolidayISO(toISO(orderDue))
+    ){
+      orderDue=subDays(orderDue,1);
+    }
+
+    const cnSummary=summarizeHolidayTypesInRange(
+      toISO(addDays(orderDue,1)),
+      toISO(fabricETD),
+      'CN'
+    );
+
+    result.stages.orderDue=orderDue;
+    result.stages.fabricETD=fabricETD;
+    result.stages.fabricInhouse=fabricInhouse;
+    result.stages.garmentsETD=garmentsETD;
+    result.stages.etaUSA=etaUSA;
+    result.stages.cdd=cdd;
+
+    result.notes.cnFabric=cnSummary;
+    result.notes.bdGarments=bdSummaryFinal;
+
+    const cnTxt=buildHolidaySummaryText(cnSummary);
+    if(cnTxt!=='-') result.remarks.push(`China: ${cnTxt}`);
+    const bdTxt=buildHolidaySummaryText(bdSummaryFinal);
+    if(bdTxt!=='-') result.remarks.push(`Bangladesh: ${bdTxt}`);
+
+    result.days.orderToFabricETD=diffDays(orderDue,fabricETD);
+    result.days.fabricETDToInhouse=diffDays(fabricETD,fabricInhouse);
+    result.days.inhouseToGarmentsETD=diffDays(fabricInhouse,garmentsETD);
+    result.days.garmentsETDToETA=diffDays(garmentsETD,etaUSA);
+    result.days.etaToCDD=diffDays(etaUSA,cdd);
+    result.days.orderToGarmentsETD=diffDays(orderDue,garmentsETD);
+    result.days.orderToCDD=diffDays(orderDue,cdd);
+
+    return result;
+  }
+}
+
+// -------------------- Seasons UI --------------------
+function renderSeasonInputs(){
+  const wrap=document.getElementById('seasonInputs');wrap.innerHTML='';
+  Object.keys(seasons).forEach(k=>{
+    const row=document.createElement('div');row.className='row';row.style.marginBottom='6px';
+    const lbl=document.createElement('label');lbl.textContent=k;lbl.style.width='110px';lbl.className='small';
+    const inp=document.createElement('input');inp.type='date';inp.value=seasons[k];inp.id='season-'+k;
+    row.appendChild(lbl);row.appendChild(inp);wrap.appendChild(row);
+  });
+}
+function buildSeasonsOverview(){
+  const tbody=document.querySelector('#seasonsTable tbody');tbody.innerHTML='';
+  Object.keys(seasons).forEach(key=>{
+    const cddISO=seasons[key];
+    const log=computeScenario(cddISO,'backward');
+    const s=log.stages;
+    const remarksSummary=[
+      buildHolidaySummaryText(log.notes.cnFabric),
+      buildHolidaySummaryText(log.notes.bdGarments)
+    ].filter(x=>x && x!=='-').join(' | ');
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${key}</td>
+      <td>${formatForUser(cddISO)}</td>
+      <td>${formatForUser(s.etaUSA)}</td>
+      <td>${formatForUser(s.garmentsETD)}</td>
+      <td>${formatForUser(s.fabricInhouse)}</td>
+      <td>${formatForUser(s.fabricETD)}</td>
+      <td>${formatForUser(s.orderDue)}</td>
+      <td style="white-space:normal">${remarksSummary || '-'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// -------------------- Detailed view cards --------------------
+function createDetailHTML(title,log){
+  if(!log){
+    return `<div class="small muted">No data.</div>`;
+  }
+  const cnSumm=log.notes.cnFabric||{};
+  const bdSumm=log.notes.bdGarments||{};
+
+  function row(label,date,daysDiff,summ){
+    const txt=summ?buildHolidaySummaryText(summ):'-';
+    const cls=(txt && txt!=='-')?'holiday':'normal';
+    return `
+      <tr>
+        <td>${label}</td>
+        <td>${formatForUser(date)}</td>
+        <td>${daysDiff!=null?daysDiff:'-'}</td>
+        <td class="${cls}">${txt}</td>
+      </tr>`;
+  }
+
+  return `
+    <table>
+      <thead>
+        <tr><th>Stage</th><th>Date</th><th>Days from prev</th><th>Holiday impact</th></tr>
+      </thead>
+      <tbody>
+        ${row('Order Due',log.stages.orderDue,null,null)}
+        ${row('Fabric ETD',log.stages.fabricETD,log.days.orderToFabricETD,cnSumm)}
+        ${row('Fabric In-house',log.stages.fabricInhouse,log.days.fabricETDToInhouse,null)}
+        ${row('Garments ETD (Ex-BD)',log.stages.garmentsETD,log.days.inhouseToGarmentsETD,bdSumm)}
+        ${row('ETA USA',log.stages.etaUSA,log.days.garmentsETDToETA,null)}
+        ${row('CDD',log.stages.cdd,log.days.etaToCDD,null)}
+      </tbody>
+    </table>
+    <div class="remarks">
+      Order Due → Garments ETD: ${log.days.orderToGarmentsETD} days |
+      Order Due → CDD: ${log.days.orderToCDD} days
+    </div>
+    <div class="remarks">
+      Holiday impacts:
+      ${log.remarks && log.remarks.length?log.remarks.join(' | '):'None'}
+    </div>`;
+}
+
+// -------------------- Holidays UI --------------------
+const holRangesListDiv=document.getElementById('holRangesList');
+const holListDiv=document.getElementById('holList');
+
+function renderHolidayRanges(){
+  holRangesListDiv.innerHTML='';
+  if(holidayRanges.length===0){
+    holRangesListDiv.innerHTML='<div class="small muted">No holiday ranges set.</div>';
+    return;
+  }
+  holidayRanges.forEach((r,idx)=>{
+    const row=document.createElement('div');
+    row.className='row';
+    row.style.marginBottom='4px';
+    row.style.justifyContent='space-between';
+    const left=document.createElement('div');
+    left.innerHTML=`<span>${r.zone} – ${r.name}:</span> <span>${r.from} → ${r.to}</span>`;
+    const right=document.createElement('div');
+    const editBtn=document.createElement('button');
+    editBtn.textContent='Edit';
+    editBtn.style.fontSize='11px';
+    editBtn.onclick=()=>{
+      document.getElementById('holidayName').value=r.name;
+      document.getElementById('holidayCountry').value=r.zone;
+      document.getElementById('holidayFrom').value=r.from;
+      document.getElementById('holidayTo').value=r.to;
+    };
+    const remBtn=document.createElement('button');
+    remBtn.textContent='Remove';
+    remBtn.style.fontSize='11px';
+    remBtn.onclick=()=>{
+      if(confirm('Remove this holiday range?')){
+        holidayRanges.splice(idx,1);
+        rebuildHolidaysFromRanges();
+        saveAll();
+        renderHolidayRanges();
+        renderHolidayDates();
+        buildSeasonsOverview();
+      }
+    };
+    right.appendChild(editBtn);
+    right.appendChild(remBtn);
+    row.appendChild(left);row.appendChild(right);
+    holRangesListDiv.appendChild(row);
+  });
+}
+function renderHolidayDates(){
+  holListDiv.innerHTML='';
+  if(holidays.length===0){
+    holListDiv.innerHTML='<div class="small muted">No holiday dates.</div>';
+    return;
+  }
+  const sorted=[...holidays].sort((a,b)=>a.date.localeCompare(b.date));
+  sorted.forEach(h=>{
+    const row=document.createElement('div');
+    row.className='row';
+    row.style.justifyContent='space-between';
+    row.style.marginBottom='3px';
+    const left=document.createElement('div');
+    left.innerHTML=`<span class="small">${h.date}</span> ${
+      h.zone==='BD'
+        ? '<span class="holiday-BD">BD</span>'
+        : '<span class="holiday-CN">CN</span>'
+    } <span class="small muted">${h.name||''}</span>`;
+    row.appendChild(left);
+    holListDiv.appendChild(row);
+  });
+}
+
+// -------------------- Storage --------------------
+function saveAll(){
+  localStorage.setItem('lt_holidayRanges',JSON.stringify(holidayRanges));
+  localStorage.setItem('lt_seasons',JSON.stringify(seasons));
+  localStorage.setItem('lt_dateFormat',dateFormatSel.value);
+  localStorage.setItem('lt_leadTimes',JSON.stringify(leadTimes));
+}
+function loadAll(){
+  const r=JSON.parse(localStorage.getItem('lt_holidayRanges')||'null');
+  const s=JSON.parse(localStorage.getItem('lt_seasons')||'null');
+  const df=localStorage.getItem('lt_dateFormat');
+  const lt=JSON.parse(localStorage.getItem('lt_leadTimes')||'null');
+
+  if(r && Array.isArray(r) && r.length>0) holidayRanges=r;
+  else loadDefaultRanges();
+
+  if(s && typeof s==='object' && Object.keys(s).length>0) seasons=s;
+  if(lt && typeof lt==='object') leadTimes={...leadTimes,...lt};
+  if(df) dateFormatSel.value=df; else dateFormatSel.value='MM/DD/YYYY';
+
+  rebuildHolidaysFromRanges();
+}
+
+// -------------------- Lead time UI --------------------
+function renderLeadTimesInputs(){
+  document.getElementById('lt_orderToFabricETD').value=leadTimes.orderToFabricETD;
+  document.getElementById('lt_fabricETDToInhouse').value=leadTimes.fabricETDToInhouse;
+  document.getElementById('lt_inhouseToGarmentsETD').value=leadTimes.inhouseToGarmentsETD;
+  document.getElementById('lt_garmentsETDToETA').value=leadTimes.garmentsETDToETA;
+  document.getElementById('lt_etaToCDD').value=leadTimes.etaToCDD;
+}
+
+// -------------------- Events --------------------
+document.getElementById('addRangeBtn').addEventListener('click',()=>{
+  const name=document.getElementById('holidayName').value.trim();
+  const zone=document.getElementById('holidayCountry').value;
+  const from=document.getElementById('holidayFrom').value;
+  const to=document.getElementById('holidayTo').value;
+  if(!name || !from || !to){alert('Please fill Holiday name, from and to.');return;}
+  const existingIndex=holidayRanges.findIndex(r=>r.name===name && r.zone===zone);
+  const obj={name,zone,from,to};
+  if(existingIndex>=0) holidayRanges[existingIndex]=obj;
+  else holidayRanges.push(obj);
+  rebuildHolidaysFromRanges();
+  saveAll();
+  renderHolidayRanges();
+  renderHolidayDates();
+  buildSeasonsOverview();
+  document.getElementById('holidayName').value='';
+});
+
+document.getElementById('loadDefaultsBtn').addEventListener('click',()=>{
+  if(confirm('Load default 2026 seasons, holidays & lead times? This will overwrite current settings.')){
+    loadDefaultRanges();
+    rebuildHolidaysFromRanges();
+    seasons={
+      "SPRING-Q1":"2026-01-05","SPRING-Q2":"2026-02-05","SPRING-Q3":"2026-03-05",
+      "SUMMER-Q1":"2026-04-05","SUMMER-Q2":"2026-05-05","SUMMER-Q3":"2026-06-05",
+      "FALL-Q1":"2026-07-05","FALL-Q2":"2026-08-05","FALL-Q3":"2026-09-05",
+      "HOLIDAY-Q1":"2026-10-05","HOLIDAY-Q2":"2026-11-05"
+    };
+    leadTimes={
+      orderToFabricETD:60,
+      fabricETDToInhouse:30,
+      inhouseToGarmentsETD:45,
+      garmentsETDToETA:60,
+      etaToCDD:14
+    };
+    renderSeasonInputs();
+    renderLeadTimesInputs();
+    saveAll();
+    renderHolidayRanges();
+    renderHolidayDates();
+    buildSeasonsOverview();
+  }
+});
+document.getElementById('reloadDefaultsBtn').addEventListener('click',()=>document.getElementById('loadDefaultsBtn').click());
+
+document.getElementById('saveSeasons').addEventListener('click',()=>{
+  Object.keys(seasons).forEach(k=>{
+    const v=document.getElementById('season-'+k).value;
+    if(v) seasons[k]=v;
+  });
+  saveAll();
+  buildSeasonsOverview();
+  alert('Seasons saved');
+});
+document.getElementById('saveLeads').addEventListener('click',()=>{
+  leadTimes.orderToFabricETD=Number(document.getElementById('lt_orderToFabricETD').value)||60;
+  leadTimes.fabricETDToInhouse=Number(document.getElementById('lt_fabricETDToInhouse').value)||30;
+  leadTimes.inhouseToGarmentsETD=Number(document.getElementById('lt_inhouseToGarmentsETD').value)||45;
+  leadTimes.garmentsETDToETA=Number(document.getElementById('lt_garmentsETDToETA').value)||60;
+  leadTimes.etaToCDD=Number(document.getElementById('lt_etaToCDD').value)||14;
+  saveAll();
+  buildSeasonsOverview();
+  alert('Lead times updated');
+});
+
+document.getElementById('refreshSeasons').addEventListener('click',buildSeasonsOverview);
+
+document.getElementById('calculateBtn').addEventListener('click',()=>{
+  const aDate=document.getElementById('scenarioAdate').value;
+  const aType=document.getElementById('scenarioAtype').value;
+  const bDate=document.getElementById('scenarioBdate').value;
+  const bType=document.getElementById('scenarioBtype').value;
+  const A=aDate?computeScenario(aDate,aType):null;
+  const B=bDate?computeScenario(bDate,bType):null;
+  const detailA=document.getElementById('detailA');
+  const detailB=document.getElementById('detailB');
+  detailA.innerHTML=createDetailHTML('Scenario A',A);
+  detailB.innerHTML=B?createDetailHTML('Scenario B',B):'<div class="small muted">No data.</div>';
+});
+
+dateFormatSel.addEventListener('change',()=>{
+  saveAll();
+  buildSeasonsOverview();
+  renderHolidayDates();
+  const aDate=document.getElementById('scenarioAdate').value;
+  const aType=document.getElementById('scenarioAtype').value;
+  const bDate=document.getElementById('scenarioBdate').value;
+  const bType=document.getElementById('scenarioBtype').value;
+  if(aDate || bDate){
+    const A=aDate?computeScenario(aDate,aType):null;
+    const B=bDate?computeScenario(bDate,bType):null;
+    document.getElementById('detailA').innerHTML=createDetailHTML('Scenario A',A);
+    document.getElementById('detailB').innerHTML=B?createDetailHTML('Scenario B',B):'<div class="small muted">No data.</div>';
+  }
+});
+
+// -------------------- Init --------------------
+loadAll();
+renderSeasonInputs();
+renderHolidayRanges();
+renderHolidayDates();
+renderLeadTimesInputs();
+buildSeasonsOverview();
+</script>
+</body>
+</html>
